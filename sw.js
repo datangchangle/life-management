@@ -2,7 +2,7 @@
    人生管理系统 - Service Worker
    缓存策略：安装时预缓存核心文件，运行时网络优先回退缓存
    ============================================================ */
-const CACHE_NAME = 'life-mgmt-v1';
+const CACHE_NAME = 'life-mgmt-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
