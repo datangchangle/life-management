@@ -1,0 +1,1975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>人生管理系统</title>
+<!-- ===== PWA 支持 ===== -->
+<meta name="theme-color" content="#0071e3">
+<meta name="description" content="人生管理系统 - 每日计划、记账、运动、心情、读书、旅行、英语一站式管理">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="人生管理">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+/* ===== 全局变量与重置 ===== */
+:root {
+  --blue: #0071e3;
+  --green: #34c759;
+  --orange: #ff9500;
+  --pink: #ff375f;
+  --purple: #af52de;
+  --cyan: #5ac8fa;
+  --indigo: #5856d6;
+  --bg: #f5f5f7;
+  --card-bg: #ffffff;
+  --text: #1d1d1f;
+  --text-secondary: #86868b;
+  --text-tertiary: #aeaeb2;
+  --border: #e5e5ea;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+  --radius: 16px;
+  --radius-sm: 10px;
+  --sidebar-w: 220px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== 侧边栏 ===== */
+.sidebar {
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 100;
+}
+.sidebar-logo {
+  padding: 0 20px 20px;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sidebar-logo span { font-size: 22px; }
+.nav-item {
+  padding: 10px 20px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all .2s;
+  border-left: 3px solid transparent;
+  font-weight: 500;
+}
+.nav-item:hover { background: rgba(0,0,0,0.04); }
+.nav-item.active {
+  background: rgba(0,113,227,0.08);
+  border-left-color: var(--blue);
+  color: var(--blue);
+}
+.nav-item .icon { font-size: 18px; width: 22px; text-align: center; }
+.nav-divider { height:1px; background: var(--border); margin: 12px 20px; }
+.nav-item.special {
+  margin: 4px 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, rgba(175,82,222,0.1), rgba(88,86,214,0.1));
+  font-weight: 600;
+}
+.nav-item.special:hover { background: linear-gradient(135deg, rgba(175,82,222,0.18), rgba(88,86,214,0.18)); }
+
+/* ===== 主内容区 ===== */
+.main {
+  margin-left: var(--sidebar-w);
+  height: 100vh;
+  overflow-y: auto;
+  padding: 32px 40px;
+}
+.module { display: none; }
+.module.active { display: block; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.page-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+/* ===== 卡片 ===== */
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== 统计卡片网格 ===== */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+.stat-card .value { font-size: 24px; font-weight: 700; }
+.stat-card .unit { font-size: 13px; color: var(--text-secondary); font-weight: 400; margin-left: 2px; }
+
+/* ===== 表单元素 ===== */
+.input, .select, .textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  transition: border-color .2s, box-shadow .2s;
+  outline: none;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+}
+.textarea { resize: vertical; min-height: 70px; }
+.input-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.input-group .input, .input-group .select { flex: 1; min-width: 100px; }
+
+.btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: #005bb5; }
+.btn-secondary { background: rgba(0,0,0,0.06); color: var(--text); }
+.btn-secondary:hover { background: rgba(0,0,0,0.1); }
+.btn-danger { background: rgba(255,59,95,0.1); color: var(--pink); }
+.btn-danger:hover { background: rgba(255,59,95,0.2); }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+/* ===== 待办事项 ===== */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  background: #fafafa;
+  transition: background .2s;
+}
+.todo-item:hover { background: #f0f0f5; }
+.todo-item.done .todo-text { text-decoration: line-through; color: var(--text-tertiary); }
+.todo-checkbox {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .2s;
+}
+.todo-checkbox.checked { background: var(--green); border-color: var(--green); }
+.todo-checkbox.checked::after { content: '✓'; color: #fff; font-size: 13px; font-weight: bold; }
+.todo-text { flex: 1; font-size: 14px; }
+.todo-del { opacity: 0; transition: opacity .2s; cursor: pointer; color: var(--text-tertiary); font-size: 16px; }
+.todo-item:hover .todo-del { opacity: 1; }
+.todo-del:hover { color: var(--pink); }
+.priority-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.priority-high { background: rgba(255,59,95,0.12); color: var(--pink); }
+.priority-mid { background: rgba(255,149,0,0.12); color: var(--orange); }
+.priority-low { background: rgba(52,199,89,0.12); color: var(--green); }
+
+/* 优先级选择按钮 */
+.priority-btns { display: flex; gap: 6px; }
+.priority-btn {
+  padding: 6px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff;
+  font-weight: 600;
+  transition: all .2s;
+}
+.priority-btn.active.high { background: var(--pink); color: #fff; border-color: var(--pink); }
+.priority-btn.active.mid { background: var(--orange); color: #fff; border-color: var(--orange); }
+.priority-btn.active.low { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* 进度环 */
+.progress-ring-wrap { display: flex; align-items: center; gap: 20px; }
+.progress-ring { position: relative; width: 100px; height: 100px; }
+.progress-ring svg { transform: rotate(-90deg); }
+.progress-ring .bg-circle { stroke: var(--border); }
+.progress-ring .fg-circle { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset .5s; }
+.progress-ring .pct {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 20px; font-weight: 700;
+}
+
+/* ===== 记账 ===== */
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  background: #fafafa;
+}
+.record-item .cat-icon { font-size: 20px; width: 28px; text-align: center; }
+.record-item .info { flex: 1; }
+.record-item .info .cat { font-size: 14px; font-weight: 600; }
+.record-item .info .note { font-size: 12px; color: var(--text-secondary); }
+.record-item .amount { font-size: 15px; font-weight: 700; }
+.record-item .amount.expense { color: var(--pink); }
+.record-item .amount.income { color: var(--green); }
+.record-item .del { cursor: pointer; color: var(--text-tertiary); opacity: 0; transition: opacity .2s; }
+.record-item:hover .del { opacity: 1; }
+.record-item .del:hover { color: var(--pink); }
+
+/* ===== 运动热力图 ===== */
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: #f0f0f5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: transform .2s;
+}
+.heat-cell.has-data { color: #fff; }
+.heat-cell .day-label { font-size: 10px; opacity: .7; }
+.heat-cell .day-count { font-size: 13px; font-weight: 700; }
+
+/* ===== 心情 ===== */
+.mood-picker { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.mood-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mood-btn:hover { transform: scale(1.1); }
+.mood-btn.active { border-color: var(--blue); background: rgba(0,113,227,0.08); transform: scale(1.1); }
+.mood-entry {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  margin-bottom: 6px;
+}
+.mood-entry .top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.mood-entry .emoji { font-size: 22px; }
+.mood-entry .date { font-size: 12px; color: var(--text-secondary); }
+.mood-entry .text { font-size: 14px; color: var(--text); }
+
+/* ===== 读书 ===== */
+.book-item {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  margin-bottom: 10px;
+}
+.book-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.book-title { font-size: 15px; font-weight: 600; }
+.book-author { font-size: 13px; color: var(--text-secondary); }
+.progress-bar-wrap {
+  background: var(--border);
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 4px;
+  transition: width .4s;
+}
+.progress-info { font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; }
+.book-notes {
+  margin-top: 8px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+
+/* ===== 旅行 ===== */
+.travel-card {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  margin-bottom: 12px;
+}
+.travel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.travel-dest { font-size: 16px; font-weight: 700; }
+.travel-date { font-size: 13px; color: var(--text-secondary); }
+.travel-section { margin-top: 10px; }
+.travel-section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.itinerary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.pack-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+.pack-checkbox {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.pack-checkbox.checked { background: var(--green); border-color: var(--green); }
+.pack-checkbox.checked::after { content: '✓'; color: #fff; font-size: 11px; font-weight: bold; }
+.pack-item.done .pack-text { text-decoration: line-through; color: var(--text-tertiary); }
+
+/* ===== 英语单词卡 ===== */
+.word-card-wrap { perspective: 1000px; }
+.word-card {
+  width: 100%;
+  max-width: 400px;
+  height: 200px;
+  margin: 0 auto;
+  position: relative;
+  transition: transform .6s;
+  transform-style: preserve-3d;
+  cursor: pointer;
+}
+.word-card.flipped { transform: rotateY(180deg); }
+.word-face {
+  position: absolute;
+  width: 100%; height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+}
+.word-front {
+  background: linear-gradient(135deg, var(--blue), var(--indigo));
+  color: #fff;
+}
+.word-back {
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: #fff;
+  transform: rotateY(180deg);
+}
+.word-front .eng { font-size: 32px; font-weight: 700; }
+.word-front .pho { font-size: 16px; opacity: .85; margin-top: 6px; }
+.word-back .chn { font-size: 24px; font-weight: 600; text-align: center; padding: 0 20px; }
+.word-hint { font-size: 12px; opacity: .6; margin-top: 12px; }
+
+.word-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.word-list-item .eng { font-weight: 600; min-width: 100px; }
+.word-list-item .pho { color: var(--text-secondary); font-size: 13px; flex: 1; }
+.word-list-item .chn { color: var(--text-secondary); }
+.status-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.status-new { background: rgba(0,113,227,0.12); color: var(--blue); }
+.status-reviewed { background: rgba(52,199,89,0.12); color: var(--green); }
+
+/* ===== AI 浮窗 ===== */
+.ai-fab {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue), var(--indigo));
+  box-shadow: 0 4px 20px rgba(0,113,227,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 200;
+  transition: transform .2s;
+  font-size: 26px;
+}
+.ai-fab:hover { transform: scale(1.08); }
+.ai-panel {
+  position: fixed;
+  bottom: 96px; right: 28px;
+  width: 360px;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 18px;
+  z-index: 200;
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-panel.show { display: flex; animation: fadeIn .25s; }
+.ai-panel .ai-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.ai-panel .ai-hint { font-size: 12px; color: var(--text-secondary); }
+.ai-panel .ai-examples { font-size: 11px; color: var(--text-tertiary); line-height: 1.6; }
+.ai-panel .ai-result {
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(52,199,89,0.08);
+  color: var(--green);
+  display: none;
+}
+.ai-panel .ai-result.show { display: block; }
+
+/* ===== 弹窗 ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px;
+  box-shadow: var(--shadow-lg);
+  animation: modalIn .3s;
+}
+@keyframes modalIn { from { opacity:0; transform: scale(.95); } to { opacity:1; transform: scale(1); } }
+.modal-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.modal-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; }
+.modal-close {
+  float: right;
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--text-secondary);
+  width: 32px; height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background .2s;
+}
+.modal-close:hover { background: rgba(0,0,0,0.06); }
+
+/* 周报卡片 */
+.week-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: #fafafa;
+  margin-bottom: 8px;
+}
+.week-stat .ws-icon { font-size: 22px; width: 30px; text-align: center; }
+.week-stat .ws-info { flex: 1; }
+.week-stat .ws-label { font-size: 13px; font-weight: 600; }
+.week-stat .ws-value { font-size: 12px; color: var(--text-secondary); }
+.insight-box {
+  background: linear-gradient(135deg, rgba(0,113,227,0.06), rgba(175,82,222,0.06));
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 12px;
+}
+.insight-box .ib-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.insight-box .ib-item { font-size: 13px; color: var(--text); margin-bottom: 6px; padding-left: 16px; position: relative; line-height: 1.5; }
+.insight-box .ib-item::before { content: '•'; position: absolute; left: 4px; color: var(--blue); }
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-tertiary);
+}
+.empty-state .emoji { font-size: 40px; margin-bottom: 8px; }
+.empty-state .text { font-size: 14px; }
+
+/* 图表容器 */
+.chart-container {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.chart-container .chart-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+.chart-box { position: relative; height: 260px; }
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+
+/* 工具栏 */
+.toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tag-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tag-filter .tag {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #f0f0f5;
+  font-weight: 500;
+  transition: all .2s;
+}
+.tag-filter .tag.active { background: var(--blue); color: #fff; }
+
+label.field-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+.form-row { margin-bottom: 12px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ===== 侧边栏 ===== -->
+<div class="sidebar">
+  <div class="sidebar-logo"><span>🌟</span> 人生管理</div>
+  <div class="nav-item active" data-module="todo"><span class="icon">✅</span> 每日计划</div>
+  <div class="nav-item" data-module="account"><span class="icon">💰</span> 记账本</div>
+  <div class="nav-item" data-module="exercise"><span class="icon">🏃</span> 运动打卡</div>
+  <div class="nav-item" data-module="mood"><span class="icon">😊</span> 心情日记</div>
+  <div class="nav-item" data-module="reading"><span class="icon">📚</span> 读书收获</div>
+  <div class="nav-item" data-module="travel"><span class="icon">✈️</span> 旅行计划</div>
+  <div class="nav-item" data-module="english"><span class="icon">🔤</span> 英语学习</div>
+  <div class="nav-divider"></div>
+  <div class="nav-item special" id="weeklyAnalysisBtn"><span class="icon">📊</span> 周度数据分析</div>
+  <div class="nav-divider"></div>
+  <div class="nav-item" id="exportBtn"><span class="icon">📤</span> 导出备份</div>
+  <div class="nav-item" id="importBtn"><span class="icon">📥</span> 导入备份</div>
+  <input type="file" id="importFile" accept=".json" style="display:none">
+</div>
+
+<!-- ===== 主内容区 ===== -->
+<div class="main">
+
+  <!-- 模块1: 每日计划 -->
+  <div class="module active" id="mod-todo">
+    <div class="page-title">✅ 每日计划</div>
+    <div class="page-subtitle">规划今日待办，高效完成每一件事</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">今日待办</div><div class="value" id="todoTotal">0</div></div>
+      <div class="stat-card"><div class="label">已完成</div><div class="value" id="todoDone">0</div></div>
+      <div class="stat-card"><div class="label">完成率</div><div class="value" id="todoRate">0<span class="unit">%</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 添加待办</div>
+      <div class="input-group" style="margin-bottom:10px;">
+        <input type="text" class="input" id="todoInput" placeholder="输入待办事项..." onkeydown="if(event.key==='Enter')addTodo()">
+      </div>
+      <div class="priority-btns" style="margin-bottom:10px;">
+        <div class="priority-btn high" data-priority="high" onclick="selectPriority(this)">高优先级</div>
+        <div class="priority-btn mid active" data-priority="mid" onclick="selectPriority(this)">中优先级</div>
+        <div class="priority-btn low" data-priority="low" onclick="selectPriority(this)">低优先级</div>
+      </div>
+      <button class="btn btn-primary" onclick="addTodo()">添加</button>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 今日清单</div>
+      <div id="todoList"></div>
+    </div>
+  </div>
+
+  <!-- 模块2: 记账本 -->
+  <div class="module" id="mod-account">
+    <div class="page-title">💰 记账本</div>
+    <div class="page-subtitle">记录每一笔收支，掌控财务状况</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">本月收入</div><div class="value" style="color:var(--green)">¥<span id="monthIncome">0</span></div></div>
+      <div class="stat-card"><div class="label">本月支出</div><div class="value" style="color:var(--pink)">¥<span id="monthExpense">0</span></div></div>
+      <div class="stat-card"><div class="label">本月结余</div><div class="value" style="color:var(--blue)">¥<span id="monthBalance">0</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 记一笔</div>
+      <div class="two-col" style="margin-bottom:10px;">
+        <div>
+          <label class="field-label">类型</label>
+          <div class="priority-btns">
+            <div class="priority-btn active" style="--c:var(--green)" data-actype="expense" onclick="selectAcType(this,'expense')">支出</div>
+            <div class="priority-btn" data-actype="income" onclick="selectAcType(this,'income')">收入</div>
+          </div>
+        </div>
+        <div>
+          <label class="field-label">金额</label>
+          <input type="number" class="input" id="acAmount" placeholder="0.00">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="field-label">分类</label>
+        <select class="select" id="acCategory"></select>
+      </div>
+      <div class="form-row">
+        <label class="field-label">备注</label>
+        <input type="text" class="input" id="acNote" placeholder="可选备注">
+      </div>
+      <button class="btn btn-primary" onclick="addAccount()">记录</button>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">📊 支出分类占比</div>
+      <div class="chart-box"><canvas id="accountChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 近期记录</div>
+      <div id="accountList"></div>
+    </div>
+  </div>
+
+  <!-- 模块3: 运动打卡 -->
+  <div class="module" id="mod-exercise">
+    <div class="page-title">🏃 运动打卡</div>
+    <div class="page-subtitle">坚持运动，保持健康活力</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">连续打卡</div><div class="value" id="streakDays">0<span class="unit">天</span></div></div>
+      <div class="stat-card"><div class="label">本周打卡</div><div class="value" id="weekExCount">0<span class="unit">次</span></div></div>
+      <div class="stat-card"><div class="label">本周消耗</div><div class="value" id="weekCalories">0<span class="unit">卡</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 运动打卡</div>
+      <div class="form-row">
+        <label class="field-label">运动类型</label>
+        <div class="tag-filter" id="exTypePicker"></div>
+      </div>
+      <div class="two-col" style="margin-bottom:10px;">
+        <div>
+          <label class="field-label">时长（分钟）</label>
+          <input type="number" class="input" id="exDuration" placeholder="30">
+        </div>
+        <div>
+          <label class="field-label">卡路里</label>
+          <input type="number" class="input" id="exCalories" placeholder="200">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="addExercise()">打卡</button>
+    </div>
+    <div class="card">
+      <div class="card-title">🔥 本周打卡热力图</div>
+      <div class="heatmap" id="exHeatmap"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 打卡记录</div>
+      <div id="exerciseList"></div>
+    </div>
+  </div>
+
+  <!-- 模块4: 心情日记 -->
+  <div class="module" id="mod-mood">
+    <div class="page-title">😊 心情日记</div>
+    <div class="page-subtitle">记录情绪，了解自己的内心世界</div>
+    <div class="card">
+      <div class="card-title">📝 今日心情</div>
+      <div class="mood-picker" id="moodPicker"></div>
+      <textarea class="textarea" id="moodText" placeholder="写下今天的心情..."></textarea>
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="addMood()">保存心情</button>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">📈 本周心情趋势</div>
+      <div class="chart-box"><canvas id="moodChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📖 心情记录</div>
+      <div id="moodList"></div>
+    </div>
+  </div>
+
+  <!-- 模块5: 读书收获 -->
+  <div class="module" id="mod-reading">
+    <div class="page-title">📚 读书收获</div>
+    <div class="page-subtitle">阅读让思想更有深度</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">阅读中</div><div class="value" id="readingCount">0<span class="unit">本</span></div></div>
+      <div class="stat-card"><div class="label">已读完</div><div class="value" id="finishedCount">0<span class="unit">本</span></div></div>
+      <div class="stat-card"><div class="label">总页数</div><div class="value" id="totalPages">0<span class="unit">页</span></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 添加书籍</div>
+      <div class="two-col" style="margin-bottom:10px;">
+        <div>
+          <label class="field-label">书名</label>
+          <input type="text" class="input" id="bookTitle" placeholder="书名">
+        </div>
+        <div>
+          <label class="field-label">作者</label>
+          <input type="text" class="input" id="bookAuthor" placeholder="作者">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="field-label">总页数</label>
+        <input type="number" class="input" id="bookPages" placeholder="300">
+      </div>
+      <button class="btn btn-primary" onclick="addBook()">添加</button>
+    </div>
+    <div class="card">
+      <div class="card-title">📖 我的书架</div>
+      <div id="bookList"></div>
+    </div>
+  </div>
+
+  <!-- 模块6: 旅行计划 -->
+  <div class="module" id="mod-travel">
+    <div class="page-title">✈️ 旅行计划</div>
+    <div class="page-subtitle">规划精彩旅程，出发不再手忙脚乱</div>
+    <div class="card">
+      <div class="card-title">➕ 新建旅行计划</div>
+      <div class="two-col" style="margin-bottom:10px;">
+        <div>
+          <label class="field-label">目的地</label>
+          <input type="text" class="input" id="travelDest" placeholder="如：东京">
+        </div>
+        <div>
+          <label class="field-label">出发日期</label>
+          <input type="date" class="input" id="travelDate">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="addTravel()">创建</button>
+    </div>
+    <div id="travelList"></div>
+  </div>
+
+  <!-- 模块7: 英语学习 -->
+  <div class="module" id="mod-english">
+    <div class="page-title">🔤 英语学习</div>
+    <div class="page-subtitle">每天背几个单词，积少成多</div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="label">累计词汇量</div><div class="value" id="totalWords">0</div></div>
+      <div class="stat-card"><div class="label">今日学习</div><div class="value" id="todayWords">0</div></div>
+      <div class="stat-card"><div class="label">待复习</div><div class="value" style="color:var(--orange)" id="reviewWords">0</div></div>
+      <div class="stat-card"><div class="label">每日目标</div><div class="value" style="color:var(--purple)" id="dailyGoal">20</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚙️ 设置每日目标</div>
+      <div class="input-group">
+        <input type="number" class="input" id="goalInput" placeholder="20" style="max-width:120px;">
+        <button class="btn btn-primary" onclick="setDailyGoal()">设置</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ 添加单词</div>
+      <div class="two-col" style="margin-bottom:10px;">
+        <div>
+          <label class="field-label">英文</label>
+          <input type="text" class="input" id="wordEng" placeholder="apple">
+        </div>
+        <div>
+          <label class="field-label">音标</label>
+          <input type="text" class="input" id="wordPho" placeholder="/ˈæp.əl/">
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="field-label">中文释义</label>
+        <input type="text" class="input" id="wordChn" placeholder="苹果">
+      </div>
+      <button class="btn btn-primary" onclick="addWord()">添加</button>
+    </div>
+    <div class="card">
+      <div class="card-title">🃏 单词卡片（点击翻转）</div>
+      <div class="word-card-wrap">
+        <div class="word-card" id="wordCard" onclick="flipCard()">
+          <div class="word-face word-front">
+            <div class="eng" id="cardEng">点击下方"下一个"</div>
+            <div class="pho" id="cardPho"></div>
+            <div class="word-hint">点击翻转查看释义</div>
+          </div>
+          <div class="word-face word-back">
+            <div class="chn" id="cardChn">—</div>
+            <div class="word-hint">点击返回</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
+        <button class="btn btn-secondary btn-sm" onclick="prevWord()">上一个</button>
+        <button class="btn btn-primary btn-sm" onclick="markReviewed()">已掌握</button>
+        <button class="btn btn-secondary btn-sm" onclick="nextWord()">下一个</button>
+      </div>
+    </div>
+    <div class="chart-container">
+      <div class="chart-title">📊 本周学习趋势</div>
+      <div class="chart-box"><canvas id="wordChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 单词列表</div>
+      <div id="wordList"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== AI 浮窗 ===== -->
+<div class="ai-fab" id="aiFab" onclick="toggleAIPanel()">🤖</div>
+<div class="ai-panel" id="aiPanel">
+  <div class="ai-title">🤖 AI 智能录入</div>
+  <div class="ai-hint">用自然语言描述，自动识别并记录</div>
+  <input type="text" class="input" id="aiInput" placeholder='如：跑步30分钟消耗200卡' onkeydown="if(event.key==='Enter')aiRecognize()">
+  <div class="ai-examples">
+    💡 示例：<br>
+    • "跑步30分钟" → 运动打卡<br>
+    • "花了50块吃饭" → 记账<br>
+    • "心情很好很开心" → 心情日记<br>
+    • "买牛奶" → 待办事项<br>
+    • "背单词serendipity幸运" → 英语<br>
+    • "看书到第50页" → 读书
+  </div>
+  <button class="btn btn-primary" onclick="aiRecognize()">识别并记录</button>
+  <div class="ai-result" id="aiResult"></div>
+</div>
+
+<!-- ===== 周度分析弹窗 ===== -->
+<div class="modal-overlay" id="weeklyModal">
+  <div class="modal">
+    <span class="modal-close" onclick="closeModal('weeklyModal')">×</span>
+    <div class="modal-title">📊 周度数据分析</div>
+    <div class="modal-sub" id="weeklySub">本周数据汇总与AI洞察建议</div>
+    <div id="weeklyContent"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   数据层 —— localStorage 管理
+   ============================================================ */
+const STORE_KEY = 'life_mgmt_data_v1';
+let DB = loadData();
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return {
+    todos: [], accounts: [], exercises: [], moods: [],
+    books: [], travels: [], words: [],
+    settings: { dailyWordGoal: 20 },
+    meta: { currentWordIndex: 0 }
+  };
+}
+function saveData() { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+
+/* 工具函数 */
+const today = () => new Date().toISOString().slice(0,10);
+const now = () => new Date().toISOString();
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+function formatDate(d) {
+  const dt = new Date(d);
+  return `${dt.getMonth()+1}月${dt.getDate()}日 ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+}
+function getWeekDates() {
+  const dates = [];
+  const now = new Date();
+  const day = now.getDay() || 7; // 周日=7
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - day + 1);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  return dates;
+}
+const weekLabels = ['一','二','三','四','五','六','日'];
+
+/* ============================================================
+   导航切换
+   ============================================================ */
+let currentModule = 'todo';
+document.querySelectorAll('.nav-item[data-module]').forEach(item => {
+  item.addEventListener('click', () => {
+    const mod = item.dataset.module;
+    currentModule = mod;
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.module').forEach(m => m.classList.remove('active'));
+    document.getElementById('mod-' + mod).classList.add('active');
+    renderModule(mod);
+  });
+});
+
+function renderModule(mod) {
+  switch(mod) {
+    case 'todo': renderTodos(); break;
+    case 'account': renderAccounts(); break;
+    case 'exercise': renderExercises(); break;
+    case 'mood': renderMoods(); break;
+    case 'reading': renderBooks(); break;
+    case 'travel': renderTravels(); break;
+    case 'english': renderWords(); break;
+  }
+}
+
+/* ============================================================
+   模块1: 每日计划
+   ============================================================ */
+let selectedPriority = 'mid';
+function selectPriority(el) {
+  el.parentElement.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedPriority = el.dataset.priority;
+}
+function addTodo() {
+  const input = document.getElementById('todoInput');
+  const text = input.value.trim();
+  if (!text) return;
+  DB.todos.push({ id: uid(), text, priority: selectedPriority, completed: false, date: today(), created: now() });
+  saveData();
+  input.value = '';
+  renderTodos();
+}
+function toggleTodo(id) {
+  const t = DB.todos.find(x => x.id === id);
+  if (t) { t.completed = !t.completed; saveData(); renderTodos(); }
+}
+function delTodo(id) {
+  DB.todos = DB.todos.filter(x => x.id !== id);
+  saveData(); renderTodos();
+}
+function renderTodos() {
+  const todays = DB.todos.filter(t => t.date === today());
+  const done = todays.filter(t => t.completed).length;
+  const total = todays.length;
+  const rate = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('todoTotal').textContent = total;
+  document.getElementById('todoDone').textContent = done;
+  document.getElementById('todoRate').innerHTML = rate + '<span class="unit">%</span>';
+
+  const list = document.getElementById('todoList');
+  if (!todays.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">🌱</div><div class="text">还没有待办，添加一个开始吧</div></div>';
+    return;
+  }
+  const order = { high: 0, mid: 1, low: 2 };
+  todays.sort((a,b) => order[a.priority] - order[b.priority]);
+  list.innerHTML = todays.map(t => `
+    <div class="todo-item ${t.completed?'done':''}">
+      <div class="todo-checkbox ${t.completed?'checked':''}" onclick="toggleTodo('${t.id}')"></div>
+      <span class="todo-text">${esc(t.text)}</span>
+      <span class="priority-tag priority-${t.priority}">${t.priority==='high'?'高':t.priority==='mid'?'中':'低'}</span>
+      <span class="todo-del" onclick="delTodo('${t.id}')">✕</span>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   模块2: 记账本
+   ============================================================ */
+const AC_CATEGORIES = [
+  { name:'餐饮', icon:'🍜', type:'expense' },
+  { name:'交通', icon:'🚇', type:'expense' },
+  { name:'购物', icon:'🛍️', type:'expense' },
+  { name:'娱乐', icon:'🎮', type:'expense' },
+  { name:'住房', icon:'🏠', type:'expense' },
+  { name:'医疗', icon:'💊', type:'expense' },
+  { name:'教育', icon:'📖', type:'expense' },
+  { name:'通讯', icon:'📱', type:'expense' },
+  { name:'工资', icon:'💼', type:'income' },
+  { name:'理财', icon:'📈', type:'income' },
+  { name:'兼职', icon:'💵', type:'income' },
+  { name:'其他', icon:'✨', type:'both' },
+];
+let acType = 'expense';
+function selectAcType(el, type) {
+  acType = type;
+  el.parentElement.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderAcCategories();
+}
+function renderAcCategories() {
+  const sel = document.getElementById('acCategory');
+  const cats = AC_CATEGORIES.filter(c => c.type === acType || c.type === 'both');
+  sel.innerHTML = cats.map(c => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('');
+}
+function addAccount() {
+  const amount = parseFloat(document.getElementById('acAmount').value);
+  if (!amount || amount <= 0) return;
+  const category = document.getElementById('acCategory').value;
+  const note = document.getElementById('acNote').value.trim();
+  DB.accounts.push({ id: uid(), type: acType, category, amount, note, date: today(), created: now() });
+  saveData();
+  document.getElementById('acAmount').value = '';
+  document.getElementById('acNote').value = '';
+  renderAccounts();
+}
+function delAccount(id) {
+  DB.accounts = DB.accounts.filter(x => x.id !== id);
+  saveData(); renderAccounts();
+}
+let accountChart = null;
+function renderAccounts() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const monthRecords = DB.accounts.filter(a => a.date.startsWith(ym));
+  const income = monthRecords.filter(a => a.type==='income').reduce((s,a)=>s+a.amount, 0);
+  const expense = monthRecords.filter(a => a.type==='expense').reduce((s,a)=>s+a.amount, 0);
+  document.getElementById('monthIncome').textContent = income.toFixed(2);
+  document.getElementById('monthExpense').textContent = expense.toFixed(2);
+  document.getElementById('monthBalance').textContent = (income - expense).toFixed(2);
+
+  // 列表
+  const list = document.getElementById('accountList');
+  const recent = [...DB.accounts].reverse().slice(0, 20);
+  if (!recent.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">💰</div><div class="text">还没有记录，记一笔吧</div></div>';
+  } else {
+    list.innerHTML = recent.map(a => {
+      const cat = AC_CATEGORIES.find(c => c.name === a.category) || { icon:'✨' };
+      return `<div class="record-item">
+        <span class="cat-icon">${cat.icon}</span>
+        <div class="info">
+          <div class="cat">${a.category}</div>
+          <div class="note">${a.note || formatDate(a.created)}</div>
+        </div>
+        <span class="amount ${a.type}">${a.type==='income'?'+':'-'}¥${a.amount.toFixed(2)}</span>
+        <span class="del" onclick="delAccount('${a.id}')">✕</span>
+      </div>`;
+    }).join('');
+  }
+
+  // 饼图
+  const expByCat = {};
+  monthRecords.filter(a => a.type==='expense').forEach(a => {
+    expByCat[a.category] = (expByCat[a.category] || 0) + a.amount;
+  });
+  drawAccountChart(expByCat);
+}
+function drawAccountChart(data) {
+  const ctx = document.getElementById('accountChart');
+  if (accountChart) accountChart.destroy();
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  if (!labels.length) {
+    ctx.getContext('2d').clearRect(0,0,ctx.width,ctx.height);
+    return;
+  }
+  const colors = ['#0071e3','#34c759','#ff9500','#ff375f','#af52de','#5ac8fa','#5856d6','#ff6480','#36c5d0','#f9a825','#8e44ad','#2ecc71'];
+  accountChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0,labels.length), borderWidth: 2, borderColor:'#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'right', labels: { font:{size:12}, padding:10 } } },
+      cutout: '55%'
+    }
+  });
+}
+
+/* ============================================================
+   模块3: 运动打卡
+   ============================================================ */
+const EX_TYPES = [
+  { name:'跑步', icon:'🏃', color:'#ff9500' },
+  { name:'游泳', icon:'🏊', color:'#5ac8fa' },
+  { name:'健身', icon:'💪', color:'#ff375f' },
+  { name:'骑行', icon:'🚴', color:'#34c759' },
+  { name:'瑜伽', icon:'🧘', color:'#af52de' },
+  { name:'篮球', icon:'🏀', color:'#ff6b35' },
+  { name:'跳绳', icon:'🪢', color:'#5856d6' },
+  { name:'散步', icon:'🚶', color:'#0071e3' },
+];
+let selectedExType = '跑步';
+function initExPicker() {
+  const picker = document.getElementById('exTypePicker');
+  picker.innerHTML = EX_TYPES.map((e,i) =>
+    `<span class="tag ${i===0?'active':''}" data-ext="${e.name}" onclick="selectExType(this)">${e.icon} ${e.name}</span>`
+  ).join('');
+}
+function selectExType(el) {
+  el.parentElement.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  selectedExType = el.dataset.ext;
+}
+function addExercise() {
+  const duration = parseInt(document.getElementById('exDuration').value);
+  const calories = parseInt(document.getElementById('exCalories').value);
+  if (!duration) return;
+  DB.exercises.push({ id: uid(), type: selectedExType, duration, calories: calories||0, date: today(), created: now() });
+  saveData();
+  document.getElementById('exDuration').value = '';
+  document.getElementById('exCalories').value = '';
+  renderExercises();
+}
+function delExercise(id) {
+  DB.exercises = DB.exercises.filter(x => x.id !== id);
+  saveData(); renderExercises();
+}
+function calcStreak() {
+  const dates = [...new Set(DB.exercises.map(e => e.date))].sort().reverse();
+  if (!dates.length) return 0;
+  let streak = 0;
+  let checkDate = new Date(today());
+  // 如果今天没打卡，从昨天开始算
+  if (!dates.includes(today())) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+  while (dates.includes(checkDate.toISOString().slice(0,10))) {
+    streak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+  return streak;
+}
+function renderExercises() {
+  const week = getWeekDates();
+  const weekEx = DB.exercises.filter(e => week.includes(e.date));
+  const weekCal = weekEx.reduce((s,e)=>s+(e.calories||0), 0);
+  document.getElementById('streakDays').innerHTML = calcStreak() + '<span class="unit">天</span>';
+  document.getElementById('weekExCount').innerHTML = weekEx.length + '<span class="unit">次</span>';
+  document.getElementById('weekCalories').innerHTML = weekCal + '<span class="unit">卡</span>';
+
+  // 热力图
+  const heatmap = document.getElementById('exHeatmap');
+  heatmap.innerHTML = week.map((d, i) => {
+    const dayEx = weekEx.filter(e => e.date === d);
+    const count = dayEx.length;
+    const cal = dayEx.reduce((s,e)=>s+(e.calories||0), 0);
+    let bg = '#f0f0f5', textCol = 'var(--text-secondary)';
+    if (count > 0) {
+      const intensity = Math.min(count / 2, 1);
+      const op = 0.35 + intensity * 0.65;
+      bg = `rgba(255,149,0,${op})`;
+      textCol = '#fff';
+    }
+    return `<div class="heat-cell ${count?'has-data':''}" style="background:${bg};color:${textCol}">
+      <span class="day-label">${weekLabels[i]}</span>
+      <span class="day-count">${count || '·'}</span>
+    </div>`;
+  }).join('');
+
+  // 列表
+  const list = document.getElementById('exerciseList');
+  const recent = [...DB.exercises].reverse().slice(0, 15);
+  if (!recent.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">🏃</div><div class="text">还没有打卡记录</div></div>';
+  } else {
+    list.innerHTML = recent.map(e => {
+      const t = EX_TYPES.find(x => x.name === e.type) || { icon:'🏃' };
+      return `<div class="record-item">
+        <span class="cat-icon">${t.icon}</span>
+        <div class="info">
+          <div class="cat">${e.type}</div>
+          <div class="note">${e.date} · ${e.duration}分钟${e.calories?' · '+e.calories+'卡':''}</div>
+        </div>
+        <span class="del" onclick="delExercise('${e.id}')">✕</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ============================================================
+   模块4: 心情日记
+   ============================================================ */
+const MOODS = [
+  { emoji:'😄', name:'开心', score:5, color:'#34c759' },
+  { emoji:'😊', name:'平静', score:4, color:'#5ac8fa' },
+  { emoji:'😐', name:'一般', score:3, color:'#86868b' },
+  { emoji:'😔', name:'低落', score:2, color:'#5856d6' },
+  { emoji:'😢', name:'难过', score:1, color:'#0071e3' },
+  { emoji:'😠', name:'愤怒', score:0, color:'#ff375f' },
+];
+let selectedMood = null;
+function initMoodPicker() {
+  const picker = document.getElementById('moodPicker');
+  picker.innerHTML = MOODS.map((m,i) =>
+    `<div class="mood-btn" data-mood="${i}" onclick="selectMood(this,${i})">${m.emoji}</div>`
+  ).join('');
+}
+function selectMood(el, idx) {
+  el.parentElement.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  selectedMood = idx;
+}
+function addMood() {
+  if (selectedMood === null) return;
+  const text = document.getElementById('moodText').value.trim();
+  DB.moods.push({ id: uid(), moodIdx: selectedMood, text, date: today(), created: now() });
+  saveData();
+  document.getElementById('moodText').value = '';
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+  selectedMood = null;
+  renderMoods();
+}
+function delMood(id) {
+  DB.moods = DB.moods.filter(x => x.id !== id);
+  saveData(); renderMoods();
+}
+let moodChart = null;
+function renderMoods() {
+  // 列表
+  const list = document.getElementById('moodList');
+  const recent = [...DB.moods].reverse().slice(0, 20);
+  if (!recent.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">📝</div><div class="text">还没有心情记录</div></div>';
+  } else {
+    list.innerHTML = recent.map(m => {
+      const mood = MOODS[m.moodIdx] || MOODS[2];
+      return `<div class="mood-entry">
+        <div class="top">
+          <span class="emoji">${mood.emoji}</span>
+          <span class="date">${formatDate(m.created)}</span>
+          <span class="todo-del" style="margin-left:auto;opacity:1;" onclick="delMood('${m.id}')">✕</span>
+        </div>
+        ${m.text ? `<div class="text">${esc(m.text)}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // 折线图
+  const week = getWeekDates();
+  const weekScores = week.map(d => {
+    const dayMoods = DB.moods.filter(m => m.date === d);
+    if (!dayMoods.length) return null;
+    const avg = dayMoods.reduce((s,m)=>s+(MOODS[m.moodIdx]?.score ?? 3), 0) / dayMoods.length;
+    return avg;
+  });
+  drawMoodChart(week, weekScores);
+}
+function drawMoodChart(labels, scores) {
+  const ctx = document.getElementById('moodChart');
+  if (moodChart) moodChart.destroy();
+  moodChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels.map((d,i) => '周' + weekLabels[i]),
+      datasets: [{
+        label: '心情指数',
+        data: scores,
+        borderColor: '#af52de',
+        backgroundColor: 'rgba(175,82,222,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#af52de',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        spanGaps: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 5, ticks: { stepSize: 1, font:{size:11} }, grid:{ color:'rgba(0,0,0,0.05)' } },
+        x: { ticks: { font:{size:12} }, grid:{ display:false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+/* ============================================================
+   模块5: 读书收获
+   ============================================================ */
+function addBook() {
+  const title = document.getElementById('bookTitle').value.trim();
+  const author = document.getElementById('bookAuthor').value.trim();
+  const pages = parseInt(document.getElementById('bookPages').value);
+  if (!title || !pages) return;
+  DB.books.push({ id: uid(), title, author, totalPages: pages, currentPage: 0, notes: '', date: today(), created: now() });
+  saveData();
+  document.getElementById('bookTitle').value = '';
+  document.getElementById('bookAuthor').value = '';
+  document.getElementById('bookPages').value = '';
+  renderBooks();
+}
+function delBook(id) {
+  DB.books = DB.books.filter(x => x.id !== id);
+  saveData(); renderBooks();
+}
+function updateProgress(id, page) {
+  const b = DB.books.find(x => x.id === id);
+  if (b) {
+    b.currentPage = Math.min(page, b.totalPages);
+    if (b.currentPage >= b.totalPages) b.currentPage = b.totalPages;
+    saveData(); renderBooks();
+  }
+}
+function saveNote(id, note) {
+  const b = DB.books.find(x => x.id === id);
+  if (b) { b.notes = note; saveData(); }
+}
+function renderBooks() {
+  const reading = DB.books.filter(b => b.currentPage < b.totalPages).length;
+  const finished = DB.books.filter(b => b.currentPage >= b.totalPages).length;
+  const totalP = DB.books.reduce((s,b)=>s+b.totalPages, 0);
+  document.getElementById('readingCount').innerHTML = reading + '<span class="unit">本</span>';
+  document.getElementById('finishedCount').innerHTML = finished + '<span class="unit">本</span>';
+  document.getElementById('totalPages').innerHTML = totalP + '<span class="unit">页</span>';
+
+  const list = document.getElementById('bookList');
+  if (!DB.books.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">📚</div><div class="text">书架空空如也，添加一本书吧</div></div>';
+    return;
+  }
+  list.innerHTML = DB.books.slice().reverse().map(b => {
+    const pct = b.totalPages ? Math.round(b.currentPage / b.totalPages * 100) : 0;
+    const isDone = b.currentPage >= b.totalPages;
+    return `<div class="book-item">
+      <div class="book-header">
+        <div>
+          <div class="book-title">${esc(b.title)} ${isDone?'✅':''}</div>
+          <div class="book-author">${esc(b.author||'未知作者')}</div>
+        </div>
+        <span class="todo-del" style="opacity:1;" onclick="delBook('${b.id}')">✕</span>
+      </div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${pct}%; background:${isDone?'var(--green)':'var(--blue)'}"></div></div>
+      <div class="progress-info">
+        <span>${b.currentPage} / ${b.totalPages} 页 (${pct}%)</span>
+        <span>${isDone?'已读完':'阅读中'}</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+        <input type="number" class="input" style="max-width:100px;" placeholder="更新页数" onkeydown="if(event.key==='Enter'){updateProgress('${b.id}',parseInt(this.value));this.value='';}">
+        <button class="btn btn-secondary btn-sm" onclick="updateProgress('${b.id}',this.previousElementSibling.value?parseInt(this.previousElementSibling.value):0)">更新进度</button>
+      </div>
+      <textarea class="textarea" style="margin-top:8px;" placeholder="读书笔记..." onblur="saveNote('${b.id}',this.value)">${esc(b.notes||'')}</textarea>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   模块6: 旅行计划
+   ============================================================ */
+function addTravel() {
+  const dest = document.getElementById('travelDest').value.trim();
+  const date = document.getElementById('travelDate').value;
+  if (!dest) return;
+  DB.travels.push({ id: uid(), destination: dest, date: date || today(), itinerary: [], packing: [], created: now() });
+  saveData();
+  document.getElementById('travelDest').value = '';
+  document.getElementById('travelDate').value = '';
+  renderTravels();
+}
+function delTravel(id) {
+  DB.travels = DB.travels.filter(x => x.id !== id);
+  saveData(); renderTravels();
+}
+function addItinerary(id) {
+  const input = document.querySelector(`[data-itin-input="${id}"]`);
+  const text = input.value.trim();
+  if (!text) return;
+  const t = DB.travels.find(x => x.id === id);
+  if (t) { t.itinerary.push({ id: uid(), text }); saveData(); renderTravels(); }
+}
+function delItinerary(travelId, itinId) {
+  const t = DB.travels.find(x => x.id === travelId);
+  if (t) { t.itinerary = t.itinerary.filter(i => i.id !== itinId); saveData(); renderTravels(); }
+}
+function addPack(id) {
+  const input = document.querySelector(`[data-pack-input="${id}"]`);
+  const text = input.value.trim();
+  if (!text) return;
+  const t = DB.travels.find(x => x.id === id);
+  if (t) { t.packing.push({ id: uid(), text, checked: false }); saveData(); renderTravels(); }
+}
+function togglePack(travelId, packId) {
+  const t = DB.travels.find(x => x.id === travelId);
+  if (t) {
+    const p = t.packing.find(x => x.id === packId);
+    if (p) { p.checked = !p.checked; saveData(); renderTravels(); }
+  }
+}
+function delPack(travelId, packId) {
+  const t = DB.travels.find(x => x.id === travelId);
+  if (t) { t.packing = t.packing.filter(x => x.id !== packId); saveData(); renderTravels(); }
+}
+function renderTravels() {
+  const list = document.getElementById('travelList');
+  if (!DB.travels.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">✈️</div><div class="text">还没有旅行计划，创建一个吧</div></div>';
+    return;
+  }
+  list.innerHTML = DB.travels.slice().reverse().map(t => `
+    <div class="travel-card">
+      <div class="travel-header">
+        <div>
+          <div class="travel-dest">📍 ${esc(t.destination)}</div>
+          <div class="travel-date">📅 ${t.date}</div>
+        </div>
+        <span class="todo-del" style="opacity:1;" onclick="delTravel('${t.id}')">✕</span>
+      </div>
+      <div class="travel-section">
+        <div class="travel-section-title">🗺️ 行程安排</div>
+        ${t.itinerary.map(i => `<div class="itinerary-item">
+          <span>•</span><span style="flex:1">${esc(i.text)}</span>
+          <span class="todo-del" style="opacity:1;" onclick="delItinerary('${t.id}','${i.id}')">✕</span>
+        </div>`).join('') || '<div style="font-size:13px;color:var(--text-tertiary);padding:4px 0;">暂无行程</div>'}
+        <div class="input-group" style="margin-top:6px;">
+          <input type="text" class="input" data-itin-input="${t.id}" placeholder="添加行程..." onkeydown="if(event.key==='Enter')addItinerary('${t.id}')">
+          <button class="btn btn-secondary btn-sm" onclick="addItinerary('${t.id}')">+</button>
+        </div>
+      </div>
+      <div class="travel-section">
+        <div class="travel-section-title">🎒 打包清单 (${t.packing.filter(p=>p.checked).length}/${t.packing.length})</div>
+        ${t.packing.map(p => `<div class="pack-item ${p.checked?'done':''}">
+          <div class="pack-checkbox ${p.checked?'checked':''}" onclick="togglePack('${t.id}','${p.id}')"></div>
+          <span class="pack-text" style="flex:1">${esc(p.text)}</span>
+          <span class="todo-del" style="opacity:1;" onclick="delPack('${t.id}','${p.id}')">✕</span>
+        </div>`).join('') || '<div style="font-size:13px;color:var(--text-tertiary);padding:4px 0;">暂无清单</div>'}
+        <div class="input-group" style="margin-top:6px;">
+          <input type="text" class="input" data-pack-input="${t.id}" placeholder="添加打包物品..." onkeydown="if(event.key==='Enter')addPack('${t.id}')">
+          <button class="btn btn-secondary btn-sm" onclick="addPack('${t.id}')">+</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   模块7: 英语学习
+   ============================================================ */
+function setDailyGoal() {
+  const g = parseInt(document.getElementById('goalInput').value);
+  if (g > 0) {
+    DB.settings.dailyWordGoal = g;
+    saveData();
+    document.getElementById('goalInput').value = '';
+    renderWords();
+  }
+}
+function addWord() {
+  const eng = document.getElementById('wordEng').value.trim();
+  const pho = document.getElementById('wordPho').value.trim();
+  const chn = document.getElementById('wordChn').value.trim();
+  if (!eng || !chn) return;
+  DB.words.push({ id: uid(), english: eng, phonetic: pho, chinese: chn, status: 'new', date: today(), created: now() });
+  saveData();
+  document.getElementById('wordEng').value = '';
+  document.getElementById('wordPho').value = '';
+  document.getElementById('wordChn').value = '';
+  renderWords();
+}
+function delWord(id) {
+  DB.words = DB.words.filter(x => x.id !== id);
+  if (DB.meta.currentWordIndex >= DB.words.length) DB.meta.currentWordIndex = 0;
+  saveData(); renderWords();
+}
+function flipCard() {
+  document.getElementById('wordCard').classList.toggle('flipped');
+}
+function nextWord() {
+  if (!DB.words.length) return;
+  DB.meta.currentWordIndex = (DB.meta.currentWordIndex + 1) % DB.words.length;
+  saveData();
+  document.getElementById('wordCard').classList.remove('flipped');
+  renderWordCard();
+}
+function prevWord() {
+  if (!DB.words.length) return;
+  DB.meta.currentWordIndex = (DB.meta.currentWordIndex - 1 + DB.words.length) % DB.words.length;
+  saveData();
+  document.getElementById('wordCard').classList.remove('flipped');
+  renderWordCard();
+}
+function markReviewed() {
+  if (!DB.words.length) return;
+  const w = DB.words[DB.meta.currentWordIndex];
+  if (w) { w.status = 'reviewed'; saveData(); renderWords(); }
+}
+function renderWordCard() {
+  const w = DB.words[DB.meta.currentWordIndex];
+  if (!w) {
+    document.getElementById('cardEng').textContent = '暂无单词';
+    document.getElementById('cardPho').textContent = '';
+    document.getElementById('cardChn').textContent = '请先添加单词';
+    return;
+  }
+  document.getElementById('cardEng').textContent = w.english;
+  document.getElementById('cardPho').textContent = w.phonetic || '';
+  document.getElementById('cardChn').textContent = w.chinese;
+}
+let wordChart = null;
+function renderWords() {
+  const total = DB.words.length;
+  const todayW = DB.words.filter(w => w.date === today()).length;
+  const review = DB.words.filter(w => w.status !== 'reviewed').length;
+  document.getElementById('totalWords').textContent = total;
+  document.getElementById('todayWords').textContent = todayW;
+  document.getElementById('reviewWords').textContent = review;
+  document.getElementById('dailyGoal').textContent = DB.settings.dailyWordGoal || 20;
+  renderWordCard();
+
+  // 列表
+  const list = document.getElementById('wordList');
+  if (!DB.words.length) {
+    list.innerHTML = '<div class="empty-state"><div class="emoji">🔤</div><div class="text">还没有单词，添加一个开始学习</div></div>';
+  } else {
+    list.innerHTML = DB.words.slice().reverse().slice(0, 30).map(w => `
+      <div class="word-list-item">
+        <span class="eng">${esc(w.english)}</span>
+        <span class="pho">${esc(w.phonetic||'')}</span>
+        <span class="chn">${esc(w.chinese)}</span>
+        <span class="status-badge ${w.status==='reviewed'?'status-reviewed':'status-new'}">${w.status==='reviewed'?'已掌握':'学习中'}</span>
+        <span class="todo-del" style="opacity:1;" onclick="delWord('${w.id}')">✕</span>
+      </div>
+    `).join('');
+  }
+
+  // 柱状图
+  const week = getWeekDates();
+  const weekCounts = week.map(d => DB.words.filter(w => w.date === d).length);
+  drawWordChart(week, weekCounts);
+}
+function drawWordChart(labels, counts) {
+  const ctx = document.getElementById('wordChart');
+  if (wordChart) wordChart.destroy();
+  wordChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels.map((d,i) => '周' + weekLabels[i]),
+      datasets: [{
+        label: '学习单词数',
+        data: counts,
+        backgroundColor: 'rgba(0,113,227,0.7)',
+        borderColor: '#0071e3',
+        borderWidth: 0,
+        borderRadius: 8,
+        barThickness: 30
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1, font:{size:11} }, grid:{ color:'rgba(0,0,0,0.05)' } },
+        x: { ticks: { font:{size:12} }, grid:{ display:false } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+/* ============================================================
+   AI 智能输入识别
+   ============================================================ */
+function toggleAIPanel() {
+  document.getElementById('aiPanel').classList.toggle('show');
+  if (document.getElementById('aiPanel').classList.contains('show')) {
+    document.getElementById('aiInput').focus();
+  }
+}
+function showAIResult(msg, ok = true) {
+  const el = document.getElementById('aiResult');
+  el.textContent = msg;
+  el.style.background = ok ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,95,0.08)';
+  el.style.color = ok ? 'var(--green)' : 'var(--pink)';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 5000);
+}
+function aiRecognize() {
+  const input = document.getElementById('aiInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  // 1. 运动: 跑步/游泳/健身/骑行/瑜伽/篮球/跳绳/散步 + 时长
+  const exTypes = ['跑步','游泳','健身','骑行','瑜伽','篮球','跳绳','散步'];
+  for (const et of exTypes) {
+    if (text.includes(et)) {
+      const durMatch = text.match(/(\d+)\s*(分钟|min|分)/);
+      const calMatch = text.match(/(\d+)\s*(卡|卡路里|kcal|cal)/);
+      const duration = durMatch ? parseInt(durMatch[1]) : 30;
+      const calories = calMatch ? parseInt(calMatch[1]) : Math.round(duration * 7);
+      selectedExType = et;
+      DB.exercises.push({ id: uid(), type: et, duration, calories, date: today(), created: now() });
+      saveData();
+      showAIResult(`✅ 运动打卡成功：${et} ${duration}分钟，消耗${calories}卡路里`);
+      if (currentModule === 'exercise') renderExercises();
+      return;
+    }
+  }
+
+  // 2. 记账: 花了/支出/收入 + 金额
+  const acMatch = text.match(/(?:花了|支出|花费|消费|收入|收到|工资)\s*(\d+(?:\.\d+)?)\s*(块|元|￥|¥)?/);
+  if (acMatch) {
+    const amount = parseFloat(acMatch[1]);
+    const isIncome = /收入|收到|工资/.test(text);
+    const cats = ['餐饮','交通','购物','娱乐','住房','医疗','教育','通讯','理财','兼职'];
+    let category = '其他';
+    const catKeywords = { '餐饮':['吃饭','吃','餐','饭','外卖','早餐','午餐','晚餐','夜宵','零食','奶茶','咖啡'],
+      '交通':['打车','地铁','公交','停车','加油','高铁','火车','机票','滴滴','出行'],
+      '购物':['买','购物','衣服','鞋','超市','电商','淘宝','京东','拼多多'],
+      '娱乐':['电影','游戏','KTV','唱歌','演出','演唱会','游乐园'],
+      '住房':['房租','水电','物业','房贷','燃气'],
+      '医疗':['看病','药','医院','挂号','体检'],
+      '教育':['书','课','培训','学费','考试'],
+      '通讯':['话费','流量','宽带','充值'],
+      '理财':['理财','基金','股票','定投'],
+      '兼职':['兼职','外快','红包','奖金'] };
+    for (const [cat, kws] of Object.entries(catKeywords)) {
+      if (kws.some(kw => text.includes(kw))) { category = cat; break; }
+    }
+    const type = isIncome ? 'income' : 'expense';
+    if (isIncome && category === '其他') category = '工资';
+    DB.accounts.push({ id: uid(), type, category, amount, note: 'AI录入', date: today(), created: now() });
+    saveData();
+    showAIResult(`✅ 记账成功：${isIncome?'收入':'支出'} ¥${amount.toFixed(2)}（${category}）`);
+    if (currentModule === 'account') renderAccounts();
+    return;
+  }
+  // 单独的 "XX块" 模式
+  const moneyMatch = text.match(/(\d+(?:\.\d+)?)\s*(块|元|￥|¥)/);
+  if (moneyMatch) {
+    const amount = parseFloat(moneyMatch[1]);
+    const cats = { '餐饮':['吃饭','吃','餐','饭','外卖','早餐','午餐','晚餐','奶茶','咖啡'],
+      '交通':['打车','地铁','公交','加油','高铁'], '购物':['买','购物','衣服','超市'],
+      '娱乐':['电影','游戏'], '住房':['房租','水电'] };
+    let category = '其他';
+    for (const [cat, kws] of Object.entries(cats)) {
+      if (kws.some(kw => text.includes(kw))) { category = cat; break; }
+    }
+    DB.accounts.push({ id: uid(), type: 'expense', category, amount, note: 'AI录入', date: today(), created: now() });
+    saveData();
+    showAIResult(`✅ 记账成功：支出 ¥${amount.toFixed(2)}（${category}）`);
+    if (currentModule === 'account') renderAccounts();
+    return;
+  }
+
+  // 3. 心情: 心情/开心/难过/生气等
+  const moodMap = [
+    { idx:0, kws:['开心','高兴','快乐','心情好','很好','棒','爽','嗨','兴奋','愉悦'] },
+    { idx:1, kws:['平静','还行','一般般','还好','不错','淡定'] },
+    { idx:2, kws:['一般','普通','无聊','无感'] },
+    { idx:3, kws:['低落','郁闷','沮丧','失落','emo','心情不好'] },
+    { idx:4, kws:['难过','伤心','悲伤','哭','心痛','委屈'] },
+    { idx:5, kws:['生气','愤怒','气死','烦躁','发火','不爽'] },
+  ];
+  for (const m of moodMap) {
+    if (m.kws.some(kw => text.includes(kw))) {
+      const moodText = text.replace(/心情|开心|高兴|快乐|难过|生气|愤怒|低落|郁闷|一般|平静|不错|还好|棒|好|差|不好/g,'').trim();
+      DB.moods.push({ id: uid(), moodIdx: m.idx, text: moodText, date: today(), created: now() });
+      saveData();
+      showAIResult(`✅ 心情已记录：${MOODS[m.idx].emoji} ${MOODS[m.idx].name}`);
+      if (currentModule === 'mood') renderMoods();
+      return;
+    }
+  }
+
+  // 4. 英语: 背单词 + 英文
+  const wordMatch = text.match(/(?:背单词|学单词|记单词|单词|学习|背)\s*([a-zA-Z]+)\s*([^\s]*)/);
+  if (wordMatch) {
+    const eng = wordMatch[1];
+    const chn = wordMatch[2] || '待补充';
+    DB.words.push({ id: uid(), english: eng, phonetic: '', chinese: chn, status: 'new', date: today(), created: now() });
+    saveData();
+    showAIResult(`✅ 单词已添加：${eng} - ${chn}`);
+    if (currentModule === 'english') renderWords();
+    return;
+  }
+
+  // 5. 读书: 看书/读书 + 页数
+  const bookMatch = text.match(/(?:看书|读书|阅读|看到)\s*第?\s*(\d+)\s*页/);
+  if (bookMatch) {
+    const page = parseInt(bookMatch[1]);
+    if (DB.books.length) {
+      const b = DB.books[DB.books.length - 1];
+      b.currentPage = Math.min(page, b.totalPages);
+      saveData();
+      showAIResult(`✅ 阅读进度已更新：《${b.title}》第${b.currentPage}页`);
+      if (currentModule === 'reading') renderBooks();
+      return;
+    }
+  }
+
+  // 6. 旅行
+  if (/旅行|旅游|去.*玩|出发|去/.test(text) && /去|旅行|旅游/.test(text)) {
+    const destMatch = text.match(/去\s*([\u4e00-\u9fa5]{2,6})/) || text.match(/旅行.*?去\s*([\u4e00-\u9fa5]{2,6})/);
+    if (destMatch) {
+      const dest = destMatch[1];
+      DB.travels.push({ id: uid(), destination: dest, date: today(), itinerary: [], packing: [], created: now() });
+      saveData();
+      showAIResult(`✅ 旅行计划已创建：${dest}`);
+      if (currentModule === 'travel') renderTravels();
+      return;
+    }
+  }
+
+  // 7. 默认作为待办
+  DB.todos.push({ id: uid(), text, priority: 'mid', completed: false, date: today(), created: now() });
+  saveData();
+  showAIResult(`✅ 已添加为待办：${text}`);
+  if (currentModule === 'todo') renderTodos();
+}
+
+/* ============================================================
+   周度数据分析
+   ============================================================ */
+document.getElementById('weeklyAnalysisBtn').addEventListener('click', () => {
+  renderWeeklyAnalysis();
+  document.getElementById('weeklyModal').classList.add('show');
+});
+
+function renderWeeklyAnalysis() {
+  const week = getWeekDates();
+  const weekStart = week[0], weekEnd = week[6];
+
+  // 统计
+  const weekTodos = DB.todos.filter(t => week.includes(t.date));
+  const todoDone = weekTodos.filter(t => t.completed).length;
+  const todoRate = weekTodos.length ? Math.round(todoDone/weekTodos.length*100) : 0;
+
+  const weekAccts = DB.accounts.filter(a => week.includes(a.date));
+  const wIncome = weekAccts.filter(a=>a.type==='income').reduce((s,a)=>s+a.amount,0);
+  const wExpense = weekAccts.filter(a=>a.type==='expense').reduce((s,a)=>s+a.amount,0);
+
+  const weekEx = DB.exercises.filter(e => week.includes(e.date));
+  const weekCal = weekEx.reduce((s,e)=>s+(e.calories||0),0);
+
+  const weekMoods = DB.moods.filter(m => week.includes(m.date));
+  let avgMood = null;
+  if (weekMoods.length) {
+    avgMood = weekMoods.reduce((s,m)=>s+(MOODS[m.moodIdx]?.score ?? 3),0) / weekMoods.length;
+  }
+
+  const weekWords = DB.words.filter(w => week.includes(w.date));
+  const reviewedWords = DB.words.filter(w => w.status==='reviewed').length;
+
+  const activeBooks = DB.books.filter(b => b.currentPage > 0).length;
+  const finishedBooks = DB.books.filter(b => b.currentPage >= b.totalPages && b.totalPages > 0).length;
+
+  const travels = DB.travels.filter(t => week.includes(t.date) || t.date >= weekStart);
+
+  // 生成洞察
+  const insights = [];
+  if (todoRate >= 80) insights.push(`🎯 本周待办完成率高达${todoRate}%，执行力很强，继续保持！`);
+  else if (todoRate < 40 && weekTodos.length > 0) insights.push(`⚠️ 本周待办完成率仅${todoRate}%，建议将大任务拆分为小步骤，降低启动门槛。`);
+  else if (weekTodos.length === 0) insights.push(`📝 本周还没有创建待办，试着规划一下本周重点任务。`);
+
+  if (wExpense > wIncome && wExpense > 0) insights.push(`💰 本周支出¥${wExpense.toFixed(0)}超过收入¥${wIncome.toFixed(0)}，建议关注${getTopExpenseCat(weekAccts)}类支出。`);
+  else if (wExpense > 0) insights.push(`💰 本周收支健康，结余¥${(wIncome-wExpense).toFixed(0)}，保持良好消费习惯。`);
+
+  if (weekEx.length >= 3) insights.push(`🏃 本周运动${weekEx.length}次，消耗${weekCal}卡，运动习惯很棒！`);
+  else if (weekEx.length === 0) insights.push(`🏃 本周还没有运动打卡，建议从每天散步15分钟开始养成习惯。`);
+
+  if (avgMood !== null) {
+    const moodName = avgMood >= 4 ? '整体心情积极' : avgMood >= 2.5 ? '情绪平稳' : '情绪偏低';
+    insights.push(`😊 本周${moodName}（均分${avgMood.toFixed(1)}/5），${avgMood < 2.5 ? '建议多关注情绪健康，适当放松。' : '保持乐观心态！'}`);
+  }
+
+  if (weekWords.length >= DB.settings.dailyWordGoal * 3) insights.push(`🔤 本周学习了${weekWords.length}个单词，词汇量稳步增长，坚持就是胜利！`);
+  else if (weekWords.length > 0) insights.push(`🔤 本周学习了${weekWords.length}个单词，可以适当提高每日目标。`);
+  else insights.push(`🔤 本周还没有学习单词，建议设置每日目标从少量开始。`);
+
+  if (activeBooks > 0) insights.push(`📚 正在阅读${activeBooks}本书${finishedBooks?`，已读完${finishedBooks}本`:''}，保持阅读习惯。`);
+
+  const content = document.getElementById('weeklyContent');
+  content.innerHTML = `
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">📅 ${weekStart} ~ ${weekEnd}</div>
+
+    <div class="week-stat">
+      <span class="ws-icon">✅</span>
+      <div class="ws-info"><div class="ws-label">每日计划</div><div class="ws-value">完成 ${todoDone}/${weekTodos.length} 项，完成率 ${todoRate}%</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">💰</span>
+      <div class="ws-info"><div class="ws-label">记账本</div><div class="ws-value">收入 ¥${wIncome.toFixed(2)} · 支出 ¥${wExpense.toFixed(2)} · 结余 ¥${(wIncome-wExpense).toFixed(2)}</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">🏃</span>
+      <div class="ws-info"><div class="ws-label">运动打卡</div><div class="ws-value">本周运动 ${weekEx.length} 次，消耗 ${weekCal} 卡路里</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">😊</span>
+      <div class="ws-info"><div class="ws-label">心情日记</div><div class="ws-value">${weekMoods.length} 条记录${avgMood!==null?`，平均心情指数 ${avgMood.toFixed(1)}/5`:''}</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">📚</span>
+      <div class="ws-info"><div class="ws-label">读书收获</div><div class="ws-value">阅读中 ${activeBooks} 本，已读完 ${finishedBooks} 本</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">✈️</span>
+      <div class="ws-info"><div class="ws-label">旅行计划</div><div class="ws-value">本周创建 ${travels.length} 个旅行计划</div></div>
+    </div>
+    <div class="week-stat">
+      <span class="ws-icon">🔤</span>
+      <div class="ws-info"><div class="ws-label">英语学习</div><div class="ws-value">本周学习 ${weekWords.length} 词，累计掌握 ${reviewedWords} 词</div></div>
+    </div>
+
+    <div class="insight-box">
+      <div class="ib-title">🤖 AI 洞察建议</div>
+      ${insights.map(i => `<div class="ib-item">${i}</div>`).join('')}
+    </div>
+  `;
+}
+function getTopExpenseCat(records) {
+  const byCat = {};
+  records.filter(a=>a.type==='expense').forEach(a => { byCat[a.category] = (byCat[a.category]||0) + a.amount; });
+  const sorted = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  return sorted.length ? sorted[0][0] : '日常';
+}
+
+/* ============================================================
+   弹窗 & 导出导入
+   ============================================================ */
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('show'); });
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const data = JSON.stringify(DB, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `人生管理系统_备份_${today()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.todos && data.accounts) {
+        DB = data;
+        if (!DB.settings) DB.settings = { dailyWordGoal: 20 };
+        if (!DB.meta) DB.meta = { currentWordIndex: 0 };
+        saveData();
+        renderModule(currentModule);
+        alert('✅ 导入成功！');
+      } else {
+        alert('❌ 文件格式不正确');
+      }
+    } catch(err) {
+      alert('❌ 导入失败：' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+/* ============================================================
+   工具
+   ============================================================ */
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ============================================================
+   初始化
+   ============================================================ */
+initExPicker();
+initMoodPicker();
+renderAcCategories();
+renderTodos();
+
+/* ===== PWA: Service Worker 注册（支持离线运行） ===== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(() => {
+      console.log('✅ PWA Service Worker 注册成功');
+    }).catch(err => {
+      console.log('Service Worker 注册失败（需HTTPS或localhost环境）:', err);
+    });
+  });
+}
+</script>
+
+</body>
+</html>
