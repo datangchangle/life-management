@@ -5,6 +5,7 @@
 const CACHE_NAME = 'life-mgmt-v1';
 const CORE_ASSETS = [
   './',
+  './index.html',
   './life-management.html',
   './manifest.json',
   './icon.svg',
@@ -53,7 +54,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => {
-        return cached || caches.match('./life-management.html');
+        return cached || caches.match('./index.html') || caches.match('./life-management.html');
       }))
   );
 });
